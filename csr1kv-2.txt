@@ -1,0 +1,92 @@
+
+!
+hostname csr1kv-2
+!
+
+
+#vrf rt,rdの設定。rdがないとInterfaceにIPが設定できないので先に行う
+#rd,rtはタグ。exportでrtをつけて経路を広報し、受け入れたいルートをimport rtで指定する
+!
+vrf definition VRF-A
+ rd 1:2
+ !
+ address-family ipv4
+  route-target export 1:2
+  route-target import 2:2
+ exit-address-family
+!
+vrf definition VRF-B
+ rd 2:2
+ !
+ address-family ipv4
+  route-target export 2:2
+  route-target import 1:2
+ exit-address-family
+!
+
+
+interface GigabitEthernet1
+ vrf forwarding VRF-A
+ ip address 192.168.1.2 255.255.255.0
+ negotiation auto
+ no mop enabled
+ no mop sysid
+!
+interface GigabitEthernet2
+ vrf forwarding VRF-B
+ ip address 192.168.2.2 255.255.255.252
+ negotiation auto
+ no mop enabled
+ no mop sysid
+
+
+
+
+
+router bgp 65001
+ bgp router-id 2.2.2.2
+ bgp log-neighbor-changes
+ !
+ address-family ipv4 vrf VRF-A
+  network 30.30.30.0 mask 255.255.255.0
+  neighbor 192.168.1.1 remote-as 65001
+  neighbor 192.168.1.1 activate
+
+  
+  #EBGPからもらった経路をIBGP側に広報する時、デフォルトだとNext Hopを書き換えない
+  #Next Hopが192.168.2.1となってしまいCSR1kvから見て到達不能なためルーティングテーブルに乗らない
+  #これを回避するため、next-hop-selfとして、自信をNext Hopとして経路を広報する
+  #http://atnetwork.info/ccnp1/bgp04.html
+  #https://www.infraexpert.com/study/bgpz14.html
+
+  #超重要###########################
+  neighbor 192.168.1.1 next-hop-self
+  ###################################
+
+ exit-address-family
+ !
+ address-family ipv4 vrf VRF-B
+  network 10.10.10.0 mask 255.255.255.0
+  neighbor 192.168.2.1 remote-as 65002
+  neighbor 192.168.2.1 activate
+ exit-address-family
+!
+
+
+#使わなかったがroute-mapを使う時の例
+!
+ip prefix-list VRF-A_to_VRF-B seq 5 permit 10.10.10.0/24
+!
+ip prefix-list VRF-B_to_VRF-A seq 5 permit 30.30.30.0/24
+!
+!
+route-map VRF-A_to_VRF-B permit 10 
+ match ip address prefix-list VRF-A_to_VRF-B
+!
+route-map VRF-B_to_VRf-A permit 10 
+ match ip address prefix-list VRF-B_to_VRF-A
+!
+
+
+!         
+end

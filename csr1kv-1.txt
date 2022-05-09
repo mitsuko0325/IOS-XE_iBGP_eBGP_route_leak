@@ -1,0 +1,75 @@
+
+!
+hostname csr1kv-1
+!
+
+
+vrf definition VRF-A
+ rd 1:2
+ !
+ address-family ipv4
+ exit-address-family
+!
+
+!
+interface Loopback0
+ vrf forwarding VRF-A
+ ip address 10.10.10.1 255.255.255.0
+!
+interface GigabitEthernet1
+ vrf forwarding VRF-A
+ ip address 192.168.1.1 255.255.255.252
+ negotiation auto
+ no mop enabled
+ no mop sysid
+!
+
+!
+router bgp 65001
+ bgp router-id 1.1.1.1
+ bgp log-neighbor-changes
+ !
+ address-family ipv4 vrf VRF-A
+  network 10.10.10.0 mask 255.255.255.0
+  neighbor 192.168.1.2 remote-as 65001
+  neighbor 192.168.1.2 activate
+ exit-address-family
+!
+ip forward-protocol nd
+ip http server
+ip http authentication local
+ip http secure-server
+!
+!
+!
+!
+!
+!
+!
+!
+control-plane
+!
+!
+!         
+!
+!
+!
+line con 0
+ stopbits 1
+line vty 0 4
+ login
+ transport input ssh
+!
+call-home
+ ! If contact email address in call-home is configured as sch-smart-licensing@cisco.com
+ ! the email address configured in Cisco Smart License Portal will be used as contact email address to send SCH notifications.
+ contact-email-addr sch-smart-licensing@cisco.com
+ profile "CiscoTAC-1"
+  active
+  destination transport-method http
+!
+!
+!
+!
+!         
+end
